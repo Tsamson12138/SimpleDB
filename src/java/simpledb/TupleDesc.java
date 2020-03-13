@@ -227,5 +227,5 @@ public class TupleDesc implements Serializable {
              describe+=items.get(i).fieldType.toString()+"("+items.get(i).fieldName+")";
         }
         return describe;
-    }
+   }
 }

@@ -34,7 +34,10 @@ public class TupleTest extends SimpleDbTestBase {
      */
     @Test public void getTupleDesc() {
         TupleDesc td = Utility.getTupleDesc(5);
+//        System.out.println(td);
         Tuple tup = new Tuple(td);
+//        if (td.equals(tup.getTupleDesc())) System.out.println("yes");
+//        else  System.out.println("no");
         assertEquals(td, tup.getTupleDesc());
     }
 
