@@ -17,13 +17,25 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe
  */
 public class Catalog {
-
+    public static class Table{
+        public int tableId;
+        public DbFile file;
+        public String name;
+        public String pkeyField;
+        public Table(int tableId,DbFile file,String name,String pkeyField){
+            this.tableId=tableId;
+            this.file=file;
+            this.name=name;
+            this.pkeyField=pkeyField;
+        }
+    }
+    Map<Integer,Table>tables;//此处不能用int
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        // some code goes here
+        tables=new LinkedHashMap<>();
     }
 
     /**
@@ -36,7 +48,9 @@ public class Catalog {
      * @param pkeyField the name of the primary key field
      */
     public void addTable(DbFile file, String name, String pkeyField) {
-        // some code goes here
+        int newTableID=file.getId();
+        Table new_table=new Table(newTableID,file,name,pkeyField);
+        tables.put(newTableID,new_table);
     }
 
     public void addTable(DbFile file, String name) {
@@ -59,8 +73,22 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public int getTableId(String name) throws NoSuchElementException {
-        // some code goes here
-        return 0;
+          boolean flag=false;
+          Integer tableId=0;
+          //ListIterator实现逆序遍历
+          ListIterator<Map.Entry<Integer,Table>> i=
+                  new ArrayList<>(tables.entrySet()).listIterator(tables.size());
+          while(i.hasPrevious()){
+              Map.Entry<Integer,Table> entry=i.previous();
+              Table temp_table=entry.getValue();
+              if(temp_table.name.equals(name)){
+                   tableId=entry.getKey();
+                   flag=true;
+                   break;
+              }
+          }
+          if(flag) return tableId;
+          else throw new NoSuchElementException();
     }
 
     /**
@@ -70,8 +98,9 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
-        // some code goes here
-        return null;
+        if(tables.get(tableid)!=null)
+            return tables.get(tableid).file.getTupleDesc();
+        else throw new NoSuchElementException();
     }
 
     /**
@@ -81,13 +110,15 @@ public class Catalog {
      *     function passed to addTable
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
-        // some code goes here
-        return null;
+        if(tables.get(tableid)!=null)
+            return tables.get(tableid).file;
+        else throw new NoSuchElementException();
     }
 
     public String getPrimaryKey(int tableid) {
-        // some code goes here
-        return null;
+        if(tables.get(tableid)!=null)
+            return tables.get(tableid).pkeyField;
+        else throw new NoSuchElementException();
     }
 
     public Iterator<Integer> tableIdIterator() {
@@ -96,13 +127,14 @@ public class Catalog {
     }
 
     public String getTableName(int id) {
-        // some code goes here
-        return null;
+        if(tables.get(id)!=null)
+            return tables.get(id).name;
+        else throw new NoSuchElementException();
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
-        // some code goes here
+        tables.clear();
     }
     
     /**

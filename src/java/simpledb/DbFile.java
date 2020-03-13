@@ -9,7 +9,7 @@ import java.io.*;
  * single DbFile. DbFiles can fetch pages and iterate through tuples. Each
  * file has a unique id used to store metadata about the table in the Catalog.
  * DbFiles are generally accessed through the buffer pool, rather than directly
- * by operators.
+ *  * by operators.
  */
 public interface DbFile {
     /**
