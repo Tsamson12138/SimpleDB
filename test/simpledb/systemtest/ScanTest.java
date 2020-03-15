@@ -93,7 +93,6 @@ public class ScanTest extends SimpleDbTestBase {
         TupleDesc td = Utility.getTupleDesc(1);
         InstrumentedHeapFile table = new InstrumentedHeapFile(f, td);
         Database.getCatalog().addTable(table, SystemTestUtil.getUUID());
-
         // Scan the table once
         SystemTestUtil.matchTuples(table, tuples);
         assertEquals(PAGES, table.readCount);

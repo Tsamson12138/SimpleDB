@@ -72,7 +72,9 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         if(bufferpool.get(pid)==null){
-            HeapFile heapFile=new HeapFile(null,null);
+            int tabelID=pid.getTableId();
+            DbFile file=Database.getCatalog().tables.get(tabelID).file;
+            HeapFile heapFile=(HeapFile)file;
             Page page=heapFile.readPage(pid);
             if(bufferpool.size()>=numPages) throw new DbException("The bufferpool is full");
             else {

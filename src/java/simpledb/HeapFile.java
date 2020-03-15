@@ -64,13 +64,13 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public Page readPage(PageId pid) {
         int pageSize=BufferPool.getPageSize();
-        int tableId=pid.getTableId();
+//        int tableId=pid.getTableId();
         int pgNo=pid.getPageNumber();
-        Catalog.Table table=Database.getCatalog().tables.get(tableId);
-        DbFile file=table.file;
-        File f;
-        HeapFile heapFile=(HeapFile)file;
-        f=heapFile.getFile();
+//        Catalog.Table table=Database.getCatalog().tables.get(tableId);
+//        DbFile file=table.file;
+//        File f;
+//        HeapFile heapFile=(HeapFile)file;
+//        f=heapFile.getFile();
         byte[]bytes;
         HeapPage heapPage=null;//初始化用null
         try {
