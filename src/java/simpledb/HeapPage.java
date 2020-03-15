@@ -323,7 +323,7 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
          return new Iterator<Tuple>() {
-             private int nextSlot=0;
+             public int nextSlot=0;
              @Override
              public boolean hasNext() {
                  if(nextSlot>=numSlots) return false;

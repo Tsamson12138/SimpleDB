@@ -2,6 +2,8 @@ package simpledb;
 
 import java.io.*;
 
+import java.util.Hashtable;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -17,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class BufferPool {
     /** Bytes per page, including header. */
+    private Map<PageId,Page> bufferpool;
+    private int numPages;
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
@@ -32,7 +36,8 @@ public class BufferPool {
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        // some code goes here
+        bufferpool=new Hashtable<>(numPages);
+        this.numPages=numPages;
     }
     
     public static int getPageSize() {
@@ -66,8 +71,17 @@ public class BufferPool {
      */
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        //
-        return  null;
+        if(bufferpool.get(pid)==null){
+            HeapFile heapFile=new HeapFile(null,null);
+            Page page=heapFile.readPage(pid);
+            if(bufferpool.size()>=numPages) throw new DbException("The bufferpool is full");
+            else {
+                bufferpool.put(pid,page);
+                return page;
+            }
+        }
+        else
+            return bufferpool.get(pid);
     }
 
     /**
