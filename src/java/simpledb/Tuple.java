@@ -99,8 +99,13 @@ public class Tuple implements Serializable {
      * where \t is any whitespace (except a newline)
      */
     public String toString() {
-        // some code goes here
-        throw new UnsupportedOperationException("Implement this");
+        StringBuffer description=new StringBuffer();
+        int n=getTupleDesc().numFields();
+        for (int i = 0; i < n; i++) {
+            description.append(fields.get(i).toString());
+            description.append(" ");
+        }
+        return description.toString();
     }
 
     /**
