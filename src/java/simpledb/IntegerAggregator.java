@@ -1,8 +1,6 @@
 package simpledb;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 /**
  * Knows how to compute some aggregate over a set of IntFields.
@@ -31,6 +29,8 @@ public class IntegerAggregator implements Aggregator {
     private Op what;
     private TupleDesc tupleDesc;
     private List<Tuple> tuples;
+    private Map<String, Integer> string_size;
+    private Map<Integer, Integer> int_size;
     public IntegerAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
         this.gbfield=gbfield;
         this.gbfieldtype=gbfieldtype;
@@ -48,6 +48,13 @@ public class IntegerAggregator implements Aggregator {
             typeAr[afield]=Type.INT_TYPE;
             tupleDesc = new TupleDesc(typeAr);
         }
+        if(gbfieldtype==Type.INT_TYPE){
+            int_size=new HashMap<>();
+            string_size=null;
+        }else{
+            string_size=new HashMap<>();
+            int_size=null;
+        }
     }
 
     /**
@@ -59,79 +66,115 @@ public class IntegerAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         Tuple tuple=new Tuple(tupleDesc);
-        if(gbfield!=-1)
-            tuple.setField(gbfield,tup.getField(gbfield));
-        switch(what){
-            case MIN:
-                if(tuples.isEmpty()) {
-                    tuple.setField(afield,tup.getField(afield));
+        int index=-1;//待删除元素的index
+        int now_value=0;
+        IntField merge_field=(IntField) tup.getField(afield);
+        int merge_value=merge_field.getValue();
+        boolean flag=true;
+        if(gbfield!=-1) {
+            tuple.setField(gbfield, tup.getField(gbfield));
+            if(!tuples.isEmpty()) {
+                if (gbfieldtype == Type.INT_TYPE) {
+                    IntField merge_gbfield = (IntField) tup.getField(gbfield);
+                    int merge_gbvalue = merge_gbfield.getValue();
+                    for (int i = 0; i < tuples.size(); i++)  {
+                        IntField now_gbfield = (IntField) tuples.get(i).getField(gbfield);
+                        int now_gbvalue = now_gbfield.getValue();
+                        if(merge_gbvalue==now_gbvalue) {
+                            IntField now_afield=(IntField)tuples.get(i).getField(afield);
+                            now_value=now_afield.getValue();
+                            flag=false;
+                            index=i;
+                            break;
+                        }
+                    }
+                } else {
+                    StringField merge_gbfield = (StringField) tup.getField(gbfield);
+                    String merge_gbvalue = merge_gbfield.getValue();
+                    for (int i = 0; i < tuples.size(); i++)  {
+                        StringField now_gbfield = (StringField) tuples.get(i).getField(gbfield);
+                        String now_gbvalue = now_gbfield.getValue();
+                        if(merge_gbvalue.equals(now_gbvalue)) {
+                            IntField now_afield=(IntField)tuples.get(i).getField(afield);
+                            now_value=now_afield.getValue();
+                            flag=false;
+                            index=i;
+                            break;
+                        }
+                    }
                 }
-                else{
-                    IntField merge_field=(IntField) tup.getField(afield);
-                    int merge_value=merge_field.getValue();
-                    IntField now_field=(IntField)tuples.get(tuples.size()-1).getField(afield);
-                    int now_value=now_field.getValue();
-                    IntField new_field=new IntField(Math.min(now_value,merge_value));
-                    tuple.setField(afield,new_field);
-                }
-                tuples.add(tuple);
-                break;
-            case MAX:
-                if(tuples.isEmpty()) {
-                    tuple.setField(afield,tup.getField(afield));
-                }
-                else{
-                    IntField merge_field=(IntField) tup.getField(afield);
-                    int merge_value=merge_field.getValue();
-                    IntField now_field=(IntField)tuples.get(tuples.size()-1).getField(afield);
-                    int now_value=now_field.getValue();
-                    IntField new_field=new IntField(Math.max(now_value,merge_value));
-                    tuple.setField(afield,new_field);
-                }
-                tuples.add(tuple);
-                break;
-            case SUM:
-                if(tuples.isEmpty()) {
-                    tuple.setField(afield,tup.getField(afield));
-                }
-                else{
-                    IntField merge_field=(IntField) tup.getField(afield);
-                    int merge_value=merge_field.getValue();
-                    IntField now_field=(IntField)tuples.get(tuples.size()-1).getField(afield);
-                    int now_value=now_field.getValue();
-                    IntField new_field=new IntField(now_value+merge_value);
-                    tuple.setField(afield,new_field);
-                }
-                tuples.add(tuple);
-                break;
-            case COUNT:
-                if(tuples.isEmpty()) {
-                    IntField new_field=new IntField(0);
-                    tuple.setField(afield,new_field);
-                }
-                else{
-                    IntField now_field=(IntField)tuples.get(tuples.size()-1).getField(afield);
-                    int now_value=now_field.getValue();
-                    IntField new_field=new IntField(now_value+1);
-                    tuple.setField(afield,new_field);
-                }
-                tuples.add(tuple);
-                break;
-            case AVG:
-                if(tuples.isEmpty()) {
-                    tuple.setField(afield,tup.getField(afield));
-                }
-                else{
-                    IntField merge_field=(IntField) tup.getField(afield);
-                    int merge_value=merge_field.getValue();
-                    IntField now_field=(IntField)tuples.get(tuples.size()-1).getField(afield);
-                    int now_value=now_field.getValue();
-                    int sum=now_value*tuples.size();
-                    IntField new_field=new IntField(sum+merge_value/(tuples.size()+1));
-                    tuple.setField(afield,new_field);
-                }
-                tuples.add(tuple);
-                break;
+            }
+        }else{
+            if(!tuples.isEmpty()) {
+                IntField now_afield = (IntField) tuples.get(tuples.size() - 1).getField(afield);
+                now_value = now_afield.getValue();
+                index=tuples.size() - 1;
+            }
+        }
+        if(tuples.isEmpty()||flag) {
+            if(what==Op.COUNT){
+                IntField new_field=new IntField(0);
+                tuple.setField(afield,new_field);
+            }
+            else
+                tuple.setField(afield,tup.getField(afield));
+            if(gbfield!=-1)
+                tuple.setField(gbfield, tup.getField(gbfield));
+        }else {
+            IntField new_field;
+            switch (what) {
+                case MIN:
+                    new_field= new IntField(Math.min(now_value, merge_value));
+                    tuple.setField(afield, new_field);
+                    break;
+                case MAX:
+                    new_field = new IntField(Math.max(now_value, merge_value));
+                    tuple.setField(afield, new_field);
+                    break;
+                case SUM:
+                    new_field = new IntField(now_value + merge_value);
+                    tuple.setField(afield, new_field);
+                    break;
+                case COUNT:
+                    new_field = new IntField(now_value + 1);
+                    tuple.setField(afield, new_field);
+                    break;
+                case AVG:
+                    int size=0;
+                    if (gbfieldtype == Type.INT_TYPE) {
+                        IntField merge_gbfield = (IntField) tup.getField(gbfield);
+                        int merge_gbvalue = merge_gbfield.getValue();
+                        size=int_size.get(merge_gbvalue);
+                    }else{
+                        StringField merge_gbfield = (StringField) tup.getField(gbfield);
+                        String merge_gbvalue = merge_gbfield.getValue();
+                        size=string_size.get(merge_gbvalue);
+                    }
+                    int sum = now_value * size;
+                    new_field = new IntField((sum + merge_value) / (size + 1));
+                    tuple.setField(afield, new_field);
+                    break;
+            }
+        }
+        if(index!=-1)
+            tuples.remove(index);
+        tuples.add(tuple);
+        if (gbfieldtype == Type.INT_TYPE) {
+            IntField merge_gbfield = (IntField) tup.getField(gbfield);
+            int merge_gbvalue = merge_gbfield.getValue();
+            if(int_size.get(merge_gbvalue)==null) int_size.put(merge_gbvalue,1);
+            else {
+                int new_size=int_size.get(merge_gbvalue)+1;
+                int_size.put(merge_gbvalue,new_size);
+            }
+        }else{
+            StringField merge_gbfield = (StringField) tup.getField(gbfield);
+            String merge_gbvalue = merge_gbfield.getValue();
+            if(string_size.get(merge_gbvalue)==null) string_size.put(merge_gbvalue,1);
+            else {
+                int new_size=string_size.get(merge_gbvalue)+1;
+                string_size.put(merge_gbvalue,new_size);
+            }
         }
     }
 
