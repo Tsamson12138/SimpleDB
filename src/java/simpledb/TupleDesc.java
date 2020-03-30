@@ -222,10 +222,10 @@ public class TupleDesc implements Serializable {
      * @return String describing this descriptor.
      */
     public String toString() {
-        String describe=new String();
+        StringBuffer describe=new StringBuffer();
         for (int i = 0; i <items.size() ; i++) {
-             describe+=items.get(i).fieldType.toString()+"("+items.get(i).fieldName+")";
+             describe.append(getFieldType(i).toString()).append("(").append(getFieldName(i)).append(")");
         }
-        return describe;
+        return describe.toString();
    }
 }
