@@ -289,7 +289,7 @@ public class HeapPage implements Page {
      * that did the dirtying
      */
     private boolean dirty;
-    TransactionId tid;
+    private TransactionId tid;
 
     public void markDirty(boolean dirty, TransactionId tid) {
         this.dirty=dirty;
