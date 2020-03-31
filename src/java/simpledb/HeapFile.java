@@ -88,8 +88,11 @@ public class HeapFile implements DbFile {
 
     // see DbFile.java for javadocs
     public void writePage(Page page) throws IOException {
-        // some code goes here
-        // not necessary for lab1
+        byte[]data=page.getPageData();
+        RandomAccessFile raf=new RandomAccessFile(f, "rw");
+        raf.seek(page.getId().getPageNumber()*BufferPool.getPageSize());
+        raf.write(data);
+        raf.close();
     }
 
     /**
@@ -139,16 +142,9 @@ public class HeapFile implements DbFile {
         if(numPages()==0) flag=false;
         if(!flag){
             heapPageId=new HeapPageId(getId(),numPages());
-            int pageSize=BufferPool.getPageSize();
-            byte[]data=new byte[pageSize];
-            for (int i = 0; i < pageSize; i++) {
-                data[i]=0x0;
-            }
-//            heapPage=new HeapPage(heapPageId,data);
-            RandomAccessFile raf=new RandomAccessFile(f, "rw");
-            raf.seek(raf.length());
-            raf.write(data);
-            raf.close();
+            byte[]data=HeapPage.createEmptyPageData();
+            heapPage=new HeapPage(heapPageId,data);
+            writePage(heapPage);
             heapPage=(HeapPage)bufferPool.getPage(null,heapPageId,null);
             heapPage.insertTuple(t);
             arrayList.add(heapPage);
