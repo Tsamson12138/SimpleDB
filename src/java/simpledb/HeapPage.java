@@ -1,5 +1,7 @@
 package simpledb;
 
+import com.sun.deploy.security.SelectableSecurityManager;
+
 import java.util.*;
 import java.io.*;
 
@@ -239,21 +241,20 @@ public class HeapPage implements Page {
      * @param t The tuple to delete
      */
     public void deleteTuple(Tuple t) throws DbException {
-//        boolean flag=false;
-//        for (int i = 0; i <numSlots ; i++) {
-//            if(tuples[i].getRecordId().equals(t.getRecordId())) {
-//                int x = i / 8;
-//                int y=i % 8;
-//                byte new_byte=(byte)(header[x]&(~(0x1<<y)));
-//                if(new_byte==header[x]) break;
-//                else {
-//                    header[x]=new_byte;
-//                    flag = true;
-//                    break;
-//                }
-//            }
-//        }
-//        if(!flag) throw new DbException("this tuple is not on this page, or tuple slot is already empty.");
+        boolean flag=false;
+        for (int i = 0; i <numSlots ; i++) {
+            if(isSlotUsed(i)) {
+                if (tuples[i].getRecordId().equals(t.getRecordId())) {
+                    if (isSlotUsed(i)) {
+                        markSlotUsed(i, false);
+                        flag = true;
+                    }
+                    break;
+                }
+            }else
+                continue;
+        }
+        if(!flag) throw new DbException("this tuple is not on this page, or tuple slot is already empty.");
     }
 
     /**
@@ -264,26 +265,43 @@ public class HeapPage implements Page {
      * @param t The tuple to add.
      */
     public void insertTuple(Tuple t) throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        if(td.equals(t.getTupleDesc())){
+            if(getNumEmptySlots()==0)
+                throw new DbException("the page is full (no empty slots).");
+            else{
+                for (int i = 0; i < numSlots; i++) {
+                    if(!isSlotUsed(i)){
+                        markSlotUsed(i,true);
+                        RecordId recordId=new RecordId(getId(),i);
+                        t.setRecordId(recordId);
+                        tuples[i]=t;
+                        break;
+                    }
+                }
+            }
+        } else{
+            throw new DbException("tupledesc is mismatch.");
+        }
     }
 
     /**
      * Marks this page as dirty/not dirty and record that transaction
      * that did the dirtying
      */
+    private boolean dirty;
+    TransactionId tid;
+
     public void markDirty(boolean dirty, TransactionId tid) {
-        // some code goes here
-	// not necessary for lab1
+        this.dirty=dirty;
+        this.tid=tid;
     }
 
     /**
      * Returns the tid of the transaction that last dirtied this page, or null if the page is not dirty
      */
     public TransactionId isDirty() {
-        // some code goes here
-	// Not necessary for lab1
-        return null;      
+        if(dirty) return tid;
+        else return null;
     }
 
     /**
@@ -313,8 +331,12 @@ public class HeapPage implements Page {
      * Abstraction to fill or clear a slot on this page.
      */
     private void markSlotUsed(int i, boolean value) {
-        // some code goes here
-        // not necessary for lab1
+        int x=i/8;
+        int y=i%8;
+        if(value)
+            header[x] |= (0x1)<<y;
+        else
+            header[x] &= ~((0x1)<<y);
     }
 
     /**

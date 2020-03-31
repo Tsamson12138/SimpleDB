@@ -118,17 +118,56 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        return null;
-        // not necessary for lab1
+        ArrayList<Page>arrayList=new ArrayList<>();
+        HeapPageId heapPageId;
+        BufferPool bufferPool=Database.getBufferPool();
+        HeapPage heapPage;
+        boolean flag=true;
+        for (int i = 0; i < numPages(); i++) {
+            heapPageId=new HeapPageId(getId(),i);
+            heapPage=(HeapPage)bufferPool.getPage(null,heapPageId,null);
+            try{
+                heapPage.insertTuple(t);
+                arrayList.add(heapPage);
+                break;
+            }catch (DbException e){
+                arrayList.add(heapPage);
+                if(i==numPages()-1)
+                    flag=false;
+            }
+        }
+        if(numPages()==0) flag=false;
+        if(!flag){
+            heapPageId=new HeapPageId(getId(),numPages());
+            int pageSize=BufferPool.getPageSize();
+            byte[]data=new byte[pageSize];
+            for (int i = 0; i < pageSize; i++) {
+                data[i]=0x0;
+            }
+//            heapPage=new HeapPage(heapPageId,data);
+            RandomAccessFile raf=new RandomAccessFile(f, "rw");
+            raf.seek(raf.length());
+            raf.write(data);
+            raf.close();
+            heapPage=(HeapPage)bufferPool.getPage(null,heapPageId,null);
+            heapPage.insertTuple(t);
+            arrayList.add(heapPage);
+        }
+        return arrayList;
+//        return null;
     }
 
     // see DbFile.java for javadocs
     public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
             TransactionAbortedException {
-        // some code goes here
-        return null;
-        // not necessary for lab1
+        ArrayList<Page>arrayList=new ArrayList<>();
+        BufferPool bufferPool=Database.getBufferPool();
+        RecordId recordId=t.getRecordId();
+        HeapPage page=(HeapPage)bufferPool.getPage(null,recordId.getPageId(),null);
+        page.deleteTuple(t);
+        arrayList.add(page);
+//        return null;
+        return arrayList;
     }
 
 
