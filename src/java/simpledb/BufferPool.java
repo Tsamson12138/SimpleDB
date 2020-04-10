@@ -193,8 +193,7 @@ public class BufferPool {
         for(Map.Entry<PageId,Page>entry:bufferpool.entrySet()){
             PageId flush_pid=entry.getKey();
             Page flush_page=entry.getValue();
-            if(flush_page.isDirty()!=null)
-                flushPage(flush_pid);
+            flushPage(flush_pid);
         }
     }
 
@@ -217,8 +216,10 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         HeapFile heapFile=(HeapFile)Database.getCatalog().tables.get(pid.getTableId()).file;
         Page page=bufferpool.get(pid);
-        page.markDirty(false,null);
-        heapFile.writePage(page);
+        if(page.isDirty()!=null) {
+            page.markDirty(false, null);
+            heapFile.writePage(page);
+        }
     }
 
     /** Write all pages of the specified transaction to disk.
