@@ -76,8 +76,7 @@ public class BufferPool {
         if(bufferpool.get(pid)==null){
             int tabelID=pid.getTableId();
             DbFile file=Database.getCatalog().tables.get(tabelID).file;
-            HeapFile heapFile=(HeapFile)file;
-            Page page=heapFile.readPage(pid);
+            Page page=file.readPage(pid);
             if(bufferpool.size()>=numPages) evictPage();
             bufferpool.put(pid,page);
             return page;
