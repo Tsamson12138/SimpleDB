@@ -144,11 +144,12 @@ public class BufferPool {
      * @param tableId the table to add the tuple to
      * @param t the tuple to add
      */
+
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         ArrayList<Page>arrayList;
         DbFile file=Database.getCatalog().tables.get(tableId).file;
-        arrayList=file.insertTuple(null,t);
+        arrayList=file.insertTuple(tid,t);
         for (int i = 0; i < arrayList.size(); i++) {
             Page page=arrayList.get(i);
             if(bufferpool.size()>=numPages) evictPage();
@@ -213,11 +214,11 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        HeapFile heapFile=(HeapFile)Database.getCatalog().tables.get(pid.getTableId()).file;
+        DbFile dbFile=Database.getCatalog().tables.get(pid.getTableId()).file;
         Page page=bufferpool.get(pid);
         if(page.isDirty()!=null) {
             page.markDirty(false, null);
-            heapFile.writePage(page);
+            dbFile.writePage(page);
         }
     }
 

@@ -195,11 +195,11 @@ public class BTreeFile implements DbFile {
 			Field f) 
 					throws DbException, TransactionAbortedException {
 		BTreePageId cur_pid=pid;
-		boolean flag=false;
 		while(cur_pid.pgcateg()!=BTreePageId.LEAF){
 			BTreeInternalPage cur_page=(BTreeInternalPage) getPage(tid,dirtypages,cur_pid,Permissions.READ_ONLY);
-			BTreeInternalPageIterator cur_iterator=new BTreeInternalPageIterator(cur_page);
+			Iterator<BTreeEntry> cur_iterator=cur_page.iterator();
 			BTreeEntry cur_entry=null;
+			boolean flag=false;
 			while(cur_iterator.hasNext()){
 				cur_entry=cur_iterator.next();
 				if(f==null){
@@ -272,8 +272,49 @@ public class BTreeFile implements DbFile {
 		// the new entry.  getParentWithEmtpySlots() will be useful here.  Don't forget to update
 		// the sibling pointers of all the affected leaf pages.  Return the page into which a 
 		// tuple with the given key field should be inserted.
-        return null;
-		
+        BTreeLeafPage right_leafPage=(BTreeLeafPage) getEmptyPage(tid,dirtypages,BTreePageId.LEAF);
+        Iterator<Tuple> iterator=page.iterator();
+        int midpoint=page.getNumTuples()/2+1;
+        Field key=null;
+        int count=0;
+        boolean insertIntoRight=false;
+        ArrayList<Tuple>rebundancyTuples=new ArrayList<>();
+        while(iterator.hasNext()){
+        	Tuple t=iterator.next();
+        	count++;
+        	if(count==midpoint){
+        		key=t.getField(keyField);
+        		if(field.compare(Op.GREATER_THAN,key))
+        			insertIntoRight=true;
+			}
+        	if(count>=midpoint){
+        		rebundancyTuples.add(t);
+			}
+		}
+		for (int i = 0; i < rebundancyTuples.size() ; i++) {
+		//for(int i=rebundancyTuples.size()-1;i>=0;i--){
+			page.deleteTuple(rebundancyTuples.get(i));
+			right_leafPage.insertTuple(rebundancyTuples.get(i));
+		}
+		BTreeInternalPage parentPage=getParentWithEmptySlots(tid,dirtypages,page.getParentId(),key);
+		BTreeEntry new_entry=new BTreeEntry(key,page.getId(),right_leafPage.getId());
+		parentPage.insertEntry(new_entry);
+		right_leafPage.setParentId(parentPage.getId());
+		//page.setParentId(parentPage.getId());
+		right_leafPage.setRightSiblingId(page.getRightSiblingId());
+		if(page.getRightSiblingId()!=null){
+			BTreeLeafPage oldRightLeafPage=(BTreeLeafPage) getPage
+					(tid,dirtypages,page.getRightSiblingId(),Permissions.READ_WRITE);
+			oldRightLeafPage.setLeftSiblingId(right_leafPage.getId());
+			dirtypages.put(oldRightLeafPage.getId(),oldRightLeafPage);
+		}
+		right_leafPage.setLeftSiblingId(page.getId());
+		page.setRightSiblingId(right_leafPage.getId());
+		dirtypages.put(page.getId(),page);
+		dirtypages.put(right_leafPage.getId(),right_leafPage);
+		dirtypages.put(parentPage.getId(),parentPage);
+        if(insertIntoRight) return right_leafPage;
+        else return page;
 	}
 	
 	/**
@@ -301,8 +342,6 @@ public class BTreeFile implements DbFile {
 	protected BTreeInternalPage splitInternalPage(TransactionId tid, HashMap<PageId, Page> dirtypages, 
 			BTreeInternalPage page, Field field) 
 					throws DbException, IOException, TransactionAbortedException {
-		// some code goes here
-        //
         // Split the internal page by adding a new page on the right of the existing
 		// page and moving half of the entries to the new page.  Push the middle key up
 		// into the parent page, and recursively split the parent as needed to accommodate
@@ -310,7 +349,42 @@ public class BTreeFile implements DbFile {
 		// the parent pointers of all the children moving to the new page.  updateParentPointers()
 		// will be useful here.  Return the page into which an entry with the given key field
 		// should be inserted.
-		return null;
+		BTreeInternalPage right_internalPage=(BTreeInternalPage) getEmptyPage(tid,dirtypages,BTreePageId.INTERNAL);
+		Iterator<BTreeEntry> iterator=page.iterator();
+		int midpoint=page.getNumEntries()/2+1;
+		Field key=null;
+		int count=0;
+		boolean insertIntoRight=false;
+		ArrayList<BTreeEntry>rebundancyEntries=new ArrayList<>();
+		while(iterator.hasNext()){
+			BTreeEntry t=iterator.next();
+			count++;
+			if(count==midpoint){
+				key=t.getKey();
+				if(field.compare(Op.GREATER_THAN,key))
+					insertIntoRight=true;
+			}
+			if(count>=midpoint){
+				rebundancyEntries.add(t);
+			}
+		}
+    	for (int i = 0; i < rebundancyEntries.size() ; i++) {
+		//for(int i=rebundancyEntries.size()-1;i>=0;i--){
+			page.deleteKeyAndRightChild(rebundancyEntries.get(i));
+			if(i!=0)
+				right_internalPage.insertEntry(rebundancyEntries.get(i));
+		}
+		BTreeInternalPage parentPage=getParentWithEmptySlots(tid,dirtypages,page.getParentId(),key);
+		BTreeEntry new_entry=new BTreeEntry(key,page.getId(),right_internalPage.getId());
+		parentPage.insertEntry(new_entry);
+		right_internalPage.setParentId(parentPage.getId());
+		//page.setParentId(parentPage.getId());
+		updateParentPointers(tid,dirtypages,right_internalPage);
+		dirtypages.put(page.getId(),page);
+		dirtypages.put(right_internalPage.getId(),right_internalPage);
+		dirtypages.put(parentPage.getId(),parentPage);
+		if(insertIntoRight) return right_internalPage;
+		else return page;
 	}
 	
 	/**
@@ -471,7 +545,6 @@ public class BTreeFile implements DbFile {
 			rootPtr = (BTreeRootPtrPage) getPage(tid, dirtypages, BTreeRootPtrPage.getId(tableid), Permissions.READ_WRITE);
 			rootPtr.setRootId(rootId);
 		}
-
 		// find and lock the left-most leaf page corresponding to the key field,
 		// and split the leaf page if there are no more slots available
 		BTreeLeafPage leafPage = findLeafPage(tid, dirtypages, rootId, Permissions.READ_WRITE, t.getField(keyField));
@@ -481,7 +554,6 @@ public class BTreeFile implements DbFile {
 
 		// insert the tuple into the leaf page
 		leafPage.insertTuple(t);
-
 		ArrayList<Page> dirtyPagesArr = new ArrayList<Page>();
 		dirtyPagesArr.addAll(dirtypages.values());
 		return dirtyPagesArr;
