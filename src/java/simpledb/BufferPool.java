@@ -2,10 +2,7 @@ package simpledb;
 
 import java.io.*;
 
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -20,6 +17,28 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe, all fields are final
  */
 public class BufferPool {
+    class Lock{
+        private PageId pid;
+        private int type;//0代表shared，1代表exclusive
+        public Lock(PageId pid,int  type){
+            this.pid=pid;
+            this.type=type;
+        }
+        public PageId getPid() {
+            return pid;
+        }
+        public void setPid(PageId pid) {
+            this.pid = pid;
+        }
+        public int getType() {
+            return type;
+        }
+        public void setType(int type) {
+            this.type = type;
+        }
+    }
+
+    private  Map<TransactionId,ArrayList<Lock>> locks;
     /** Bytes per page, including header. */
     private Map<PageId,Page> bufferpool;
     private int numPages;
@@ -40,6 +59,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
         bufferpool=new LinkedHashMap<>(numPages);
         this.numPages=numPages;
+        locks=new HashMap<>();
     }
     
     public static int getPageSize() {
