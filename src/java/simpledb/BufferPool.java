@@ -30,6 +30,9 @@ public class BufferPool {
             this.type=type;
             this.holeders=holeders;
         }
+        public void upgradeLockType(){
+            type=LockType.Excluscive;
+        }
         public PageId getPid() {
             return pid;
         }
@@ -52,51 +55,51 @@ public class BufferPool {
             transactionLocks=new HashMap<>();
             pageLocks=new HashMap<>();
         }
+        public synchronized void updateTransactionLocks(TransactionId tid,PageId pid){
+            ArrayList<PageId> curLockList = transactionLocks.get(tid);
+            if (curLockList == null) {//新事务
+                ArrayList<PageId> newLockList = new ArrayList<>();
+                newLockList.add(pid);
+                transactionLocks.put(tid, newLockList);
+            } else {//旧事务
+                curLockList.add(pid);
+            }
+        }
         public synchronized void acquireLock(TransactionId tid,PageId pid,LockType type)  {
 //            System.out.println(pid.getPageNumber());
 //            System.out.println(type);
             while (true) {
                 Lock curLock = pageLocks.get(pid);
                 if (curLock == null) {//无锁
-//                    System.out.println(pid.getPageNumber());
-//                    System.out.println(type);
                     ArrayList<TransactionId> new_holders = new ArrayList<>();
                     new_holders.add(tid);
                     Lock newLock = new Lock(pid, type, new_holders);
                     pageLocks.put(pid, newLock);
-                    ArrayList<PageId> curLockList = transactionLocks.get(tid);
-                    if (curLockList == null) {//新事务
-//                        System.out.println(pid.getPageNumber());
-//                        System.out.println(type);
-                        ArrayList<PageId> newLockList = new ArrayList<>();
-                        newLockList.add(pid);
-                        transactionLocks.put(tid, newLockList);
-                        break;
-                    } else {//旧事务
-                        curLockList.add(pid);
-                        break;
-                    }
+                    updateTransactionLocks(tid,pid);
+                    break;
                 } else {//有锁
-                    if (type == LockType.Shared && curLock.getType() == type) {
-                        ArrayList<TransactionId> curHolders = curLock.getHoleders();
-                        curHolders.add(tid);
-                        curLock.setHoleders(curHolders);
-                        pageLocks.put(pid, curLock);
-                        ArrayList<PageId> curLockList = transactionLocks.get(tid);
-                        if (curLockList == null) {//新事务
-                            ArrayList<PageId> newLockList = new ArrayList<>();
-                            newLockList.add(pid);
-                            transactionLocks.put(tid, newLockList);
+                    if (curLock.getType() == LockType.Shared ) {//有共享锁
+                        if(type==LockType.Shared) {//继续共享
+                            ArrayList<TransactionId> curHolders = curLock.getHoleders();
+                            curHolders.add(tid);
+                            updateTransactionLocks(tid,pid);
                             break;
-                        } else {//旧事务
-                            curLockList.add(pid);
-                            break;
+                        }else{//独自共享时可更新成独占
+                             if(curLock.getHoleders().size()==1&&curLock.getHoleders().get(0)==tid){
+                                 curLock.upgradeLockType();
+                                 break;
+                             }
                         }
+                    }else{//有独占锁
+                         if(curLock.getHoleders().get(0)==tid){//还是该事务重新请求独占锁
+                             //do nothing
+                             break;
+                         }
                     }
                 }
                 try {
                     Random random = new Random();
-                    int waitTime = random.nextInt(500) + 500;
+                    int waitTime = random.nextInt(50) + 50;
                     wait(waitTime);
                 }catch (InterruptedException e){
                     e.printStackTrace();
