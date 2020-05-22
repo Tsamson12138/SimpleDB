@@ -65,9 +65,10 @@ public class BufferPool {
                 curLockList.add(pid);
             }
         }
-        public synchronized void acquireLock(TransactionId tid,PageId pid,LockType type)  {
+        public synchronized void acquireLock(TransactionId tid,PageId pid,LockType type) throws TransactionAbortedException {
 //            System.out.println(pid.getPageNumber());
 //            System.out.println(type);
+            long begin=System.currentTimeMillis();
             while (true) {
                 Lock curLock = pageLocks.get(pid);
                 if (curLock == null) {//无锁
@@ -85,18 +86,20 @@ public class BufferPool {
                             updateTransactionLocks(tid,pid);
                             break;
                         }else{//独自共享时可更新成独占
-                             if(curLock.getHoleders().size()==1&&curLock.getHoleders().get(0)==tid){
-                                 curLock.upgradeLockType();
-                                 break;
-                             }
+                            if(curLock.getHoleders().size()==1&&curLock.getHoleders().get(0)==tid){
+                                curLock.upgradeLockType();
+                                break;
+                            }
                         }
                     }else{//有独占锁
-                         if(curLock.getHoleders().get(0)==tid){//还是该事务重新请求独占锁
-                             //do nothing
-                             break;
-                         }
+                        if(curLock.getHoleders().get(0)==tid){//还是该事务重新请求独占锁
+                            //do nothing
+                            break;
+                        }
                     }
                 }
+                if(System.currentTimeMillis()-begin>5000)
+                    throw new TransactionAbortedException();
                 try {
                     Random random = new Random();
                     int waitTime = random.nextInt(50) + 50;
@@ -229,7 +232,7 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      */
     public void transactionComplete(TransactionId tid) throws IOException {
-        lockManager.releaseAllLocks(tid);
+        transactionComplete(tid,true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -246,7 +249,21 @@ public class BufferPool {
      */
     public void transactionComplete(TransactionId tid, boolean commit)
             throws IOException {
-        transactionComplete(tid);
+        if(commit){
+            flushPages(tid);
+        }else{
+            ArrayList<PageId>curLockList=lockManager.transactionLocks.get(tid);
+            for(int i=0;i<curLockList.size();i++){
+                Page curPage=bufferpool.get(curLockList.get(i));
+                if(curPage!=null) {
+                    if (curPage.isDirty() != null) {
+                        curPage.markDirty(false, null);
+                        discardPage(curLockList.get(i));
+                    }
+                }
+            }
+        }
+        lockManager.releaseAllLocks(tid);
     }
 
     /**
@@ -336,9 +353,11 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         DbFile dbFile=Database.getCatalog().tables.get(pid.getTableId()).file;
         Page page=bufferpool.get(pid);
-        if(page.isDirty()!=null) {
-            page.markDirty(false, null);
-            dbFile.writePage(page);
+        if(page!=null) {
+            if (page.isDirty() != null) {
+                page.markDirty(false, null);
+                dbFile.writePage(page);
+            }
         }
     }
 
@@ -356,17 +375,19 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        for(Map.Entry<PageId,Page>entry:bufferpool.entrySet()){
-            PageId evict_pid=entry.getKey();
-            Page evict_page=entry.getValue();
-            try{
-                flushPage(evict_pid);
+        boolean flag=false;
+        for(Map.Entry<PageId,Page>entry:bufferpool.entrySet()) {
+            PageId evict_pid = entry.getKey();
+            Page evict_page = entry.getValue();
+            if (evict_page.isDirty() == null) {
+                //flushPage(evict_pid);
                 discardPage(evict_pid);
-            }catch (Exception e){
-                e.printStackTrace();
+                flag=true;
+                break;
             }
-            break;
         }
+        if(!flag)
+            throw new DbException("No page can be evicted!");
     }
 
 }

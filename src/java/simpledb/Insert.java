@@ -23,6 +23,7 @@ public class Insert extends Operator {
      *             if TupleDesc of child differs from table into which we are to
      *             insert.
      */
+    private TransactionId tid;
     private OpIterator child;
     private int tableId;
     private int count;
@@ -32,6 +33,7 @@ public class Insert extends Operator {
     private Tuple[] tuples;
     public Insert(TransactionId t, OpIterator child, int tableId)
             throws DbException {
+        this.tid=t;
         this.child=child;
         this.tableId=tableId;
         Type[]typeAr=new Type[1];
@@ -52,7 +54,7 @@ public class Insert extends Operator {
         while(child.hasNext()) {
             Tuple insert_tuple=child.next();
             try {
-                Database.getBufferPool().insertTuple(null, tableId, insert_tuple);
+                Database.getBufferPool().insertTuple(tid, tableId, insert_tuple);
             }catch (Exception e){
                 e.printStackTrace();
             }

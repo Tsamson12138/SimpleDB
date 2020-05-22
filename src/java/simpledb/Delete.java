@@ -19,6 +19,7 @@ public class Delete extends Operator {
      * @param child
      *            The child operator from which to read tuples for deletion
      */
+    private TransactionId tid;
     private OpIterator child;
     private int count;
     private TupleDesc tupleDesc;
@@ -26,6 +27,7 @@ public class Delete extends Operator {
     private int index;
     private Tuple[] tuples;
     public Delete(TransactionId t, OpIterator child) {
+        this.tid=t;
         this.child=child;
         Type[]typeAr=new Type[1];
         typeAr[0]=Type.INT_TYPE;
@@ -45,7 +47,7 @@ public class Delete extends Operator {
         while(child.hasNext()) {
             Tuple delete_tuple=child.next();
             try {
-                Database.getBufferPool().deleteTuple(null,delete_tuple);
+                Database.getBufferPool().deleteTuple(tid,delete_tuple);
             }catch (Exception e){
                 e.printStackTrace();
             }
