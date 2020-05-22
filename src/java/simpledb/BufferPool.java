@@ -52,8 +52,10 @@ public class BufferPool {
         private  Map<TransactionId,ArrayList<PageId>> transactionLocks;
         private  Map<PageId, Lock> pageLocks;
         public LockManager(){
-            transactionLocks=new HashMap<>();
-            pageLocks=new HashMap<>();
+//            transactionLocks=new HashMap<>();
+//            pageLocks=new HashMap<>();
+            transactionLocks=new ConcurrentHashMap<>();
+            pageLocks=new ConcurrentHashMap<>();
         }
         public synchronized void updateTransactionLocks(TransactionId tid,PageId pid){
             ArrayList<PageId> curLockList = transactionLocks.get(tid);
@@ -66,8 +68,9 @@ public class BufferPool {
             }
         }
         public synchronized void acquireLock(TransactionId tid,PageId pid,LockType type) throws TransactionAbortedException {
-//            System.out.println(pid.getPageNumber());
-//            System.out.println(type);
+            System.out.println(tid);
+            System.out.println(pid.getPageNumber());
+            System.out.println(type);
             long begin=System.currentTimeMillis();
             while (true) {
                 Lock curLock = pageLocks.get(pid);
@@ -81,9 +84,11 @@ public class BufferPool {
                 } else {//有锁
                     if (curLock.getType() == LockType.Shared ) {//有共享锁
                         if(type==LockType.Shared) {//继续共享
-                            ArrayList<TransactionId> curHolders = curLock.getHoleders();
-                            curHolders.add(tid);
-                            updateTransactionLocks(tid,pid);
+                            if(!curLock.getHoleders().contains(tid)){
+                                ArrayList<TransactionId> curHolders = curLock.getHoleders();
+                                curHolders.add(tid);
+                                updateTransactionLocks(tid, pid);
+                            }
                             break;
                         }else{//独自共享时可更新成独占
                             if(curLock.getHoleders().size()==1&&curLock.getHoleders().get(0)==tid){
@@ -98,7 +103,7 @@ public class BufferPool {
                         }
                     }
                 }
-                if(System.currentTimeMillis()-begin>5000)
+                if(System.currentTimeMillis()-begin>2000)
                     throw new TransactionAbortedException();
                 try {
                     Random random = new Random();
@@ -158,7 +163,8 @@ public class BufferPool {
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        bufferpool=new LinkedHashMap<>(numPages);
+//        bufferpool=new LinkedHashMap<>(numPages);
+        bufferpool=new ConcurrentHashMap<>(numPages);
         this.numPages=numPages;
         lockManager=new LockManager();
     }

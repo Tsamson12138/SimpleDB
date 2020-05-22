@@ -28,7 +28,6 @@ public class TransactionTest extends SimpleDbTestBase {
         HashMap<Integer, Integer> columnSpecification = new HashMap<Integer, Integer>();
         columnSpecification.put(0, 0);
         DbFile table = SystemTestUtil.createRandomHeapFile(1, 1, columnSpecification, null);
-
         ModifiableCyclicBarrier latch = new ModifiableCyclicBarrier(threads);
         XactionTester[] list = new XactionTester[threads];
         for(int i = 0; i < list.length; i++) {
@@ -92,7 +91,7 @@ public class TransactionTest extends SimpleDbTestBase {
                         tr.start();
                         SeqScan ss1 = new SeqScan(tr.getId(), tableId, "");
                         SeqScan ss2 = new SeqScan(tr.getId(), tableId, "");
-
+                        System.out.println(Thread.currentThread().getName()+tr.getId().toString()+"  seqscan begin");
                         // read the value out of the table
                         Query q1 = new Query(ss1, tr.getId());
                         q1.start();
@@ -110,7 +109,7 @@ public class TransactionTest extends SimpleDbTestBase {
 
                         // race the other threads to finish the transaction: one will win
                         q1.close();
-
+                        System.out.println(Thread.currentThread().getName()+tr.getId().toString()+"  Delete begin");
                         // delete old values (i.e., just one row) from table
                         Delete delOp = new Delete(tr.getId(), ss2);
 
@@ -124,7 +123,7 @@ public class TransactionTest extends SimpleDbTestBase {
                         HashSet<Tuple> hs = new HashSet<Tuple>();
                         hs.add(t);
                         TupleIterator ti = new TupleIterator(t.getTupleDesc(), hs);
-
+                        System.out.println(Thread.currentThread().getName()+tr.getId().toString()+"  Insert begin");
                         // insert this new tuple into the table
                         Insert insOp = new Insert(tr.getId(), ti, tableId);
                         Query q3 = new Query(insOp, tr.getId());

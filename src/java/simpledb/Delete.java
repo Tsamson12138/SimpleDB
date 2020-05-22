@@ -46,6 +46,7 @@ public class Delete extends Operator {
         child.open();
         while(child.hasNext()) {
             Tuple delete_tuple=child.next();
+            Database.getBufferPool().releasePage(tid,delete_tuple.getRecordId().getPageId());
             try {
                 Database.getBufferPool().deleteTuple(tid,delete_tuple);
             }catch (Exception e){

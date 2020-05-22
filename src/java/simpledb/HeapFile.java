@@ -198,6 +198,7 @@ public class HeapFile implements DbFile {
                 else{
                     if(pgNo>=numPages()-1) return false;
                     else{
+                        Database.getBufferPool().releasePage(tid,heapPageId);
                         pgNo++;
                         heapPageId=new HeapPageId(tableID,pgNo);
                         page=Database.getBufferPool().getPage(tid,heapPageId,Permissions.READ_ONLY);
