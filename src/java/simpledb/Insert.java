@@ -1,5 +1,7 @@
 package simpledb;
 
+import org.omg.PortableInterceptor.SYSTEM_EXCEPTION;
+
 import java.io.IOException;
 
 /**
@@ -55,8 +57,8 @@ public class Insert extends Operator {
             Tuple insert_tuple=child.next();
             try {
                 Database.getBufferPool().insertTuple(tid, tableId, insert_tuple);
-            }catch (Exception e){
-                e.printStackTrace();
+            }catch (IOException ioe){
+                ioe.printStackTrace();
             }
             count++;
         }

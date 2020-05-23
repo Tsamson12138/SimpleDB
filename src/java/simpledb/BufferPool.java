@@ -24,11 +24,11 @@ public class BufferPool {
     class Lock{
         private PageId pid;
         private LockType type;
-        private ArrayList<TransactionId> holeders;
-        public Lock(PageId pid,LockType type,ArrayList<TransactionId>holeders){
+        private ArrayList<TransactionId> holders;
+        public Lock(PageId pid,LockType type,ArrayList<TransactionId>holders){
             this.pid=pid;
             this.type=type;
-            this.holeders=holeders;
+            this.holders=holders;
         }
         public void upgradeLockType(){
             type=LockType.Excluscive;
@@ -45,8 +45,8 @@ public class BufferPool {
         public void setType(LockType type) {
             this.type = type;
         }
-        public ArrayList<TransactionId> getHoleders() { return holeders; }
-        public void setHoleders(ArrayList<TransactionId> holeders) { this.holeders = holeders; }
+        public ArrayList<TransactionId> getHolders() { return holders; }
+        public void setHolders(ArrayList<TransactionId> holders) { this.holders = holders; }
     }
     class LockManager{
         private  Map<TransactionId,ArrayList<PageId>> transactionLocks;
@@ -68,10 +68,9 @@ public class BufferPool {
             }
         }
         public synchronized void acquireLock(TransactionId tid,PageId pid,LockType type) throws TransactionAbortedException {
-            System.out.println(tid);
-            System.out.println(pid.getPageNumber());
-            System.out.println(type);
+            //System.out.println(tid+" "+pid.getPageNumber()+" "+type);
             long begin=System.currentTimeMillis();
+            long timeout=new Random().nextInt(5001) ;
             while (true) {
                 Lock curLock = pageLocks.get(pid);
                 if (curLock == null) {//无锁
@@ -84,53 +83,63 @@ public class BufferPool {
                 } else {//有锁
                     if (curLock.getType() == LockType.Shared ) {//有共享锁
                         if(type==LockType.Shared) {//继续共享
-                            if(!curLock.getHoleders().contains(tid)){
-                                ArrayList<TransactionId> curHolders = curLock.getHoleders();
+                            if(!curLock.getHolders().contains(tid)){
+                                ArrayList<TransactionId> curHolders = curLock.getHolders();
                                 curHolders.add(tid);
                                 updateTransactionLocks(tid, pid);
                             }
                             break;
                         }else{//独自共享时可更新成独占
-                            if(curLock.getHoleders().size()==1&&curLock.getHoleders().get(0)==tid){
+                            //System.out.println(tid+"  Reading request write");
+                            if(curLock.getHolders().size()==1&&curLock.getHolders().get(0)==tid){
                                 curLock.upgradeLockType();
+                                //System.out.println("***********************");
+                                //System.out.println(tid+"  upgrade successfully");
                                 break;
                             }
+                            //System.out.println(tid+"  block");
                         }
                     }else{//有独占锁
-                        if(curLock.getHoleders().get(0)==tid){//还是该事务重新请求独占锁
+                        if(curLock.getHolders().get(0)==tid){//还是该事务重新请求独占锁
                             //do nothing
                             break;
                         }
                     }
                 }
-                if(System.currentTimeMillis()-begin>2000)
+                //死锁检查
+                if (System.currentTimeMillis() - begin > timeout) {
                     throw new TransactionAbortedException();
+                }
                 try {
-                    Random random = new Random();
-                    int waitTime = random.nextInt(50) + 50;
-                    wait(waitTime);
-                }catch (InterruptedException e){
+                    wait(timeout);
+                } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
         }
         public synchronized void releaseLock(TransactionId tid,PageId pid){
-            Lock curLock=pageLocks.get(pid);
-            if(curLock.getHoleders().size()==1){
-                pageLocks.remove(pid);
+            //System.out.println("release   "+tid+" "+pid.getPageNumber());
+            if (transactionLocks.containsKey(tid)) {
                 transactionLocks.get(tid).remove(pid);
-            }else{
-                ArrayList<TransactionId> curHolders = curLock.getHoleders();
-                curHolders.remove(tid);
-                curLock.setHoleders(curHolders);
-                pageLocks.put(pid, curLock);
-                transactionLocks.get(tid).remove(pid);
+                if (transactionLocks.get(tid).size() == 0) {
+                    transactionLocks.remove(tid);
+                }
+            }
+
+            // remove from locktable
+            if (pageLocks.containsKey(pid)) {
+                pageLocks.get(pid).getHolders().remove(tid);
+                if (pageLocks.get(pid).getHolders().size() == 0) {
+                    pageLocks.remove(pid);
+                }
             }
         }
         public synchronized void releaseAllLocks(TransactionId tid){
             ArrayList<PageId>curLockList=transactionLocks.get(tid);
-            for(int i=0;i<curLockList.size();i++){
-                releaseLock(tid,curLockList.get(i));
+            if(curLockList!=null) {
+                for (int i = 0; i < curLockList.size(); i++) {
+                    releaseLock(tid, curLockList.get(i));
+                }
             }
         }
         public synchronized boolean holdsLock(TransactionId tid,PageId pid){
@@ -257,11 +266,12 @@ public class BufferPool {
             throws IOException {
         if(commit){
             flushPages(tid);
-        }else{
-            ArrayList<PageId>curLockList=lockManager.transactionLocks.get(tid);
-            for(int i=0;i<curLockList.size();i++){
-                Page curPage=bufferpool.get(curLockList.get(i));
-                if(curPage!=null) {
+        }
+        ArrayList<PageId>curLockList=lockManager.transactionLocks.get(tid);
+        if(curLockList!=null) {
+            for (int i = 0; i < curLockList.size(); i++) {
+                Page curPage = bufferpool.get(curLockList.get(i));
+                if (curPage != null) {
                     if (curPage.isDirty() != null) {
                         curPage.markDirty(false, null);
                         discardPage(curLockList.get(i));
@@ -295,8 +305,10 @@ public class BufferPool {
         arrayList=file.insertTuple(tid,t);
         for (int i = 0; i < arrayList.size(); i++) {
             Page page=arrayList.get(i);
-            if(bufferpool.size()>=numPages) evictPage();
-            bufferpool.put(page.getId(),page);
+            if(page.isDirty()!=null) {
+                bufferpool.remove(page.getId(),page);
+                bufferpool.put(page.getId(), page);
+            }
         }
     }
 
@@ -322,8 +334,10 @@ public class BufferPool {
         arrayList=file.deleteTuple(tid,t);
         for (int i = 0; i < arrayList.size(); i++) {
             Page page=arrayList.get(i);
-            if(bufferpool.size()>=numPages) evictPage();
-            bufferpool.put(page.getId(),page);
+            if(page.isDirty()!=null) {
+                bufferpool.remove(page.getId(),page);
+                bufferpool.put(page.getId(), page);
+            }
         }
     }
 
@@ -361,8 +375,8 @@ public class BufferPool {
         Page page=bufferpool.get(pid);
         if(page!=null) {
             if (page.isDirty() != null) {
-                page.markDirty(false, null);
                 dbFile.writePage(page);
+                page.markDirty(false, null);
             }
         }
     }
@@ -371,8 +385,10 @@ public class BufferPool {
      */
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         ArrayList<PageId>curLockList=lockManager.transactionLocks.get(tid);
-        for(int i=0;i<curLockList.size();i++){
-            flushPage(curLockList.get(i));
+        if(curLockList!=null) {
+            for (int i = 0; i < curLockList.size(); i++) {
+                flushPage(curLockList.get(i));
+            }
         }
     }
 

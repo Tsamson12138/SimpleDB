@@ -180,6 +180,7 @@ public class HeapFile implements DbFile {
             Page page;
             HeapPage heapPage;
             Iterator<Tuple> tupleIterator;
+            //ArrayList<PageId> affected;
             @Override
             public void open() throws DbException, TransactionAbortedException {
                 tableID=getId();
@@ -187,6 +188,8 @@ public class HeapFile implements DbFile {
                 heapPageId=new HeapPageId(tableID,pgNo);
                 page=Database.getBufferPool().getPage(tid,heapPageId,Permissions.READ_ONLY);
                 heapPage=(HeapPage)page;
+                //affected=new ArrayList<>();
+                //affected.add(heapPageId);
                 tupleIterator=heapPage.iterator();
             }
 
@@ -198,9 +201,10 @@ public class HeapFile implements DbFile {
                 else{
                     if(pgNo>=numPages()-1) return false;
                     else{
-                        Database.getBufferPool().releasePage(tid,heapPageId);
+                        //Database.getBufferPool().releasePage(tid,heapPageId);
                         pgNo++;
                         heapPageId=new HeapPageId(tableID,pgNo);
+                        //affected.add(heapPageId);
                         page=Database.getBufferPool().getPage(tid,heapPageId,Permissions.READ_ONLY);
                         heapPage=(HeapPage)page;
                         tupleIterator=heapPage.iterator();
@@ -223,6 +227,7 @@ public class HeapFile implements DbFile {
                 page=Database.getBufferPool().getPage(tid,heapPageId,Permissions.READ_ONLY);
                 heapPage=(HeapPage)page;
                 tupleIterator=heapPage.iterator();
+                //affected.clear();
             }
 
             @Override
@@ -231,6 +236,9 @@ public class HeapFile implements DbFile {
                 page=null;
                 heapPage=null;
                 tupleIterator=null;
+//                for(PageId pageId:affected){
+//                    Database.getBufferPool().releasePage(tid,pageId);
+//                }
             }
         };
     }
