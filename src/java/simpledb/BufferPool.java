@@ -51,11 +51,13 @@ public class BufferPool {
     class LockManager{
         private  Map<TransactionId,ArrayList<PageId>> transactionLocks;
         private  Map<PageId, Lock> pageLocks;
+        private  Map<TransactionId,ArrayList<PageId>> waitTable;//依赖图
         public LockManager(){
 //            transactionLocks=new HashMap<>();
 //            pageLocks=new HashMap<>();
             transactionLocks=new ConcurrentHashMap<>();
             pageLocks=new ConcurrentHashMap<>();
+            waitTable=new ConcurrentHashMap<>();
         }
         public synchronized void updateTransactionLocks(TransactionId tid,PageId pid){
             ArrayList<PageId> curLockList = transactionLocks.get(tid);
@@ -106,7 +108,39 @@ public class BufferPool {
                         }
                     }
                 }
-                //死锁检查
+                //修改waitTable
+                if(waitTable.containsKey(tid)){
+                    waitTable.get(tid).add(pid);
+                }else{
+                    ArrayList<PageId>waitPages=new ArrayList<>();
+                    waitPages.add(pid);
+                    waitTable.put(tid,waitPages);
+                }
+                //依赖图死锁检查
+//                boolean ifDeadLock=false;
+//                ArrayList<TransactionId> nowLockHolders=pageLocks.get(pid).getHolders();
+//                ArrayList<PageId>nowOccupyResources=transactionLocks.get(tid);
+//                if(nowLockHolders!=null&&!nowLockHolders.isEmpty()) {
+//                    for (TransactionId nowLockHolder : nowLockHolders) {
+//                        if(nowLockHolder!=tid) {
+//                            if (nowOccupyResources != null && !nowOccupyResources.isEmpty()) {
+//                                for (PageId nowOccupyResource : nowOccupyResources) {
+//                                    if (waitTable.containsKey(nowLockHolder)) {
+//                                        if (waitTable.get(nowLockHolder).contains(nowOccupyResource)) {
+//                                            ifDeadLock = true;
+//                                            break;
+//                                        }
+//                                    }
+//                                }
+//                            }
+//                        }
+//                        if (ifDeadLock)
+//                            break;
+//                    }
+//                }
+//                if(ifDeadLock)
+//                    throw new TransactionAbortedException();
+                //超时timeout死锁检查
                 if (System.currentTimeMillis() - begin > timeout) {
                     throw new TransactionAbortedException();
                 }
@@ -116,6 +150,13 @@ public class BufferPool {
                     e.printStackTrace();
                 }
             }
+            //已获得锁，从waitTable中删除
+            if(waitTable.containsKey(tid)){
+                waitTable.get(tid).remove(pid);
+                if(waitTable.get(tid).isEmpty())
+                    waitTable.remove(tid);
+            }
+
         }
         public synchronized void releaseLock(TransactionId tid,PageId pid){
             //System.out.println("release   "+tid+" "+pid.getPageNumber());
