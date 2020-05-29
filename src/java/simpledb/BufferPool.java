@@ -69,6 +69,53 @@ public class BufferPool {
                 curLockList.add(pid);
             }
         }
+        public synchronized boolean independencyGraphDeadLockCheck(TransactionId tid,PageId pid){
+            //直接
+            boolean ifDeadLock=false;
+            ArrayList<TransactionId> nowLockHolders=pageLocks.get(pid).getHolders();
+            ArrayList<PageId>nowOccupyResources=transactionLocks.get(tid);
+            if(nowLockHolders!=null&&!nowLockHolders.isEmpty()) {
+                for (TransactionId nowLockHolder : nowLockHolders) {
+                    if(nowLockHolder!=tid) {
+                        if (nowOccupyResources != null && !nowOccupyResources.isEmpty()) {
+                            for (PageId nowOccupyResource : nowOccupyResources) {
+                                if (waitTable.containsKey(nowLockHolder)) {
+                                    if (waitTable.get(nowLockHolder).contains(nowOccupyResource)) {
+                                        ifDeadLock = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (ifDeadLock)
+                        break;
+                }
+            }
+            if(ifDeadLock)
+                return true;
+            else{
+                //间接
+                if(nowLockHolders!=null&&!nowLockHolders.isEmpty()) {
+                    for (TransactionId nowLockHolder : nowLockHolders) {
+                        if(nowLockHolder!=tid) {
+                            if (waitTable.containsKey(nowLockHolder)) {
+                                ArrayList<PageId>tempPages=waitTable.get(nowLockHolder);
+                                for(PageId tempPage:tempPages){
+                                    ifDeadLock=independencyGraphDeadLockCheck(tid,tempPage);
+                                    if (ifDeadLock)
+                                        break;
+                                }
+                            }
+                        }
+                        if (ifDeadLock)
+                            break;
+                    }
+                }
+                return ifDeadLock;
+            }
+
+        }
         public synchronized void acquireLock(TransactionId tid,PageId pid,LockType type) throws TransactionAbortedException {
             //System.out.println(tid+" "+pid.getPageNumber()+" "+type);
             long begin=System.currentTimeMillis();
@@ -117,33 +164,12 @@ public class BufferPool {
                     waitTable.put(tid,waitPages);
                 }
                 //依赖图死锁检查
-//                boolean ifDeadLock=false;
-//                ArrayList<TransactionId> nowLockHolders=pageLocks.get(pid).getHolders();
-//                ArrayList<PageId>nowOccupyResources=transactionLocks.get(tid);
-//                if(nowLockHolders!=null&&!nowLockHolders.isEmpty()) {
-//                    for (TransactionId nowLockHolder : nowLockHolders) {
-//                        if(nowLockHolder!=tid) {
-//                            if (nowOccupyResources != null && !nowOccupyResources.isEmpty()) {
-//                                for (PageId nowOccupyResource : nowOccupyResources) {
-//                                    if (waitTable.containsKey(nowLockHolder)) {
-//                                        if (waitTable.get(nowLockHolder).contains(nowOccupyResource)) {
-//                                            ifDeadLock = true;
-//                                            break;
-//                                        }
-//                                    }
-//                                }
-//                            }
-//                        }
-//                        if (ifDeadLock)
-//                            break;
-//                    }
-//                }
-//                if(ifDeadLock)
-//                    throw new TransactionAbortedException();
-                //超时timeout死锁检查
-                if (System.currentTimeMillis() - begin > timeout) {
+                if(independencyGraphDeadLockCheck(tid,pid))
                     throw new TransactionAbortedException();
-                }
+                //超时timeout死锁检查
+//                if (System.currentTimeMillis() - begin > timeout) {
+//                    throw new TransactionAbortedException();
+//                }
                 try {
                     wait(timeout);
                 } catch (InterruptedException e) {
